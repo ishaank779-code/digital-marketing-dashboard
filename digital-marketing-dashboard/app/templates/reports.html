@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Reports - AnalyticsPro{% endblock %}
+{% block page_title %}Performance Reports{% endblock %}
+
+{% block content %}
+<div class="filter-bar">
+    <span class="text-muted small">Campaign performance summary across all time</span>
+    <a href="{{ url_for('main.export_csv') }}" class="btn btn-sm btn-accent ms-auto">
+        <i class="bi bi-download"></i> Download CSV Report
+    </a>
+</div>
+
+<div class="table-card mb-4">
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Campaign</th>
+                    <th>Status</th>
+                    <th>Clicks</th>
+                    <th>Conversions</th>
+                    <th>Cost</th>
+                    <th>Avg CPC</th>
+                    <th>Conv. Rate</th>
+                    <th>ROI</th>
+                    <th>Budget Used</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in summary %}
+                <tr>
+                    <td>
+                        <strong>{{ row.campaign.name }}</strong>
+                        {% if row.campaign.url and 'uncodemy' in row.campaign.url %}
+                        <br><a href="{{ row.campaign.url }}" target="_blank" class="small text-primary">View course →</a>
+                        {% endif %}
+                    </td>
+                    <td><span class="badge-status {{ row.campaign.status }}">{{ row.campaign.status }}</span></td>
+                    <td>{{ "{:,}".format(row.clicks) }}</td>
+                    <td>{{ row.conversions }}</td>
+                    <td>${{ "{:,.2f}".format(row.cost) }}</td>
+                    <td>${{ "%.2f"|format(row.cpc) }}</td>
+                    <td>{{ row.conv_rate }}%</td>
+                    <td class="{% if row.roi > 200 %}text-success{% elif row.roi > 100 %}text-primary{% else %}text-warning{% endif %}">
+                        <strong>{{ row.roi }}%</strong>
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="budget-progress flex-grow-1" style="width:80px;">
+                                <div class="bar" style="width: {{ [row.budget_used, 100]|min }}%"></div>
+                            </div>
+                            <span class="small">{{ row.budget_used }}%</span>
+                        </div>
+                    </td>
+                    <td>
+                        <a href="{{ url_for('main.campaign_detail', campaign_id=row.campaign.id) }}" class="btn btn-sm btn-outline-primary">
+                            Details
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Summary cards -->
+<div class="row g-3">
+    <div class="col-md-3">
+        <div class="kpi-card text-center">
+            <div class="kpi-label">Total Campaigns</div>
+            <div class="kpi-value">{{ campaigns|length }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-card text-center">
+            <div class="kpi-label">Active</div>
+            <div class="kpi-value text-success">{{ campaigns|selectattr('status','equalto','active')|list|length }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-card text-center">
+            <div class="kpi-label">Total Spend</div>
+            <div class="kpi-value">${{ "{:,.0f}".format(summary|sum(attribute='cost')) }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-card text-center">
+            <div class="kpi-label">Total Conversions</div>
+            <div class="kpi-value">{{ summary|sum(attribute='conversions') }}</div>
+        </div>
+    </div>
+</div>
+{% endblock %}

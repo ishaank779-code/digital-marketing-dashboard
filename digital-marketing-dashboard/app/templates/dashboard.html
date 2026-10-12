@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - AnalyticsPro{% endblock %}
+{% block page_title %}
+    {% if selected %}{{ selected.name }}{% else %}Overview Dashboard{% endif %}
+{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="filter-bar">
+    <form method="get" class="d-flex flex-wrap gap-2 align-items-center w-100">
+        <label class="small text-muted mb-0">Campaign:</label>
+        <select name="campaign_id" class="form-select form-select-sm" onchange="this.form.submit()">
+            <option value="">All Campaigns</option>
+            {% for c in campaigns %}
+            <option value="{{ c.id }}" {% if selected and selected.id == c.id %}selected{% endif %}>
+                {{ c.name }}
+            </option>
+            {% endfor %}
+        </select>
+        <label class="small text-muted mb-0 ms-2">Period:</label>
+        <select name="days" class="form-select form-select-sm" onchange="this.form.submit()">
+            <option value="7" {% if days == 7 %}selected{% endif %}>Last 7 days</option>
+            <option value="14" {% if days == 14 %}selected{% endif %}>Last 14 days</option>
+            <option value="30" {% if days == 30 %}selected{% endif %}>Last 30 days</option>
+            <option value="60" {% if days == 60 %}selected{% endif %}>Last 60 days</option>
+        </select>
+        {% if selected %}
+        <a href="{{ url_for('main.campaign_detail', campaign_id=selected.id) }}" class="btn btn-sm btn-outline-primary ms-auto">
+            <i class="bi bi-eye"></i> View Details
+        </a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="kpi-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="kpi-label">Conversions</div>
+                    <div class="kpi-value">{{ "{:,}".format(total_conversions) }}</div>
+                    <div class="kpi-sub">{{ conv_rate }}% conversion rate</div>
+                </div>
+                <div class="kpi-icon green"><i class="bi bi-check2-circle"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="kpi-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="kpi-label">Clicks</div>
+                    <div class="kpi-value">{{ "{:,}".format(total_clicks) }}</div>
+                    <div class="kpi-sub">{{ "{:,}".format(total_impressions) }} impressions</div>
+                </div>
+                <div class="kpi-icon blue"><i class="bi bi-cursor"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="kpi-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="kpi-label">Cost per Click</div>
+                    <div class="kpi-value">${{ "%.2f"|format(avg_cpc) }}</div>
+                    <div class="kpi-sub">Total spend ${{ "{:,.2f}".format(total_cost) }}</div>
+                </div>
+                <div class="kpi-icon orange"><i class="bi bi-currency-dollar"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="kpi-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="kpi-label">Return on Investment</div>
+                    <div class="kpi-value">{{ roi }}%</div>
+                    <div class="kpi-sub">Estimated based on conversions</div>
+                </div>
+                <div class="kpi-icon purple"><i class="bi bi-graph-up-arrow"></i></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row 1 -->
+<div class="row g-3 mb-4">
+    <div class="col-lg-8">
+        <div class="chart-card">
+            <h5><i class="bi bi-activity me-1"></i> Clicks & Conversions Trend</h5>
+            <div class="chart-container">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="chart-card">
+            <h5><i class="bi bi-pie-chart me-1"></i> Traffic by Platform</h5>
+            <div class="chart-container sm">
+                <canvas id="platformChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row 2 -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="chart-card">
+            <h5>Conversions Share</h5>
+            <div class="chart-container sm donut-wrapper">
+                <canvas id="convDonut"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="chart-card">
+            <h5>Clicks Distribution</h5>
+            <div class="chart-container sm donut-wrapper">
+                <canvas id="clicksDonut"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="chart-card">
+            <h5>Daily Cost & ROI Proxy</h5>
+            <div class="chart-container sm">
+                <canvas id="costRoiChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Campaigns -->
+<div class="row g-3">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Active Campaigns</h5>
+            <a href="{{ url_for('main.campaigns_list') }}" class="btn btn-sm btn-outline-secondary">View All</a>
+        </div>
+    </div>
+    {% for c in campaigns if c.status == 'active' %}
+    <div class="col-md-6 col-lg-3">
+        <div class="campaign-card">
+            <a href="{{ url_for('main.campaign_detail', campaign_id=c.id) }}">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="badge-status {{ c.status }}">{{ c.status }}</span>
+                    <span class="small text-muted">ROI {{ c.roi() }}%</span>
+                </div>
+                <div class="campaign-name">{{ c.name }}</div>
+                <div class="campaign-meta mb-2">{{ c.platform }}</div>
+                <div class="d-flex justify-content-between small">
+                    <span><i class="bi bi-cursor"></i> {{ "{:,}".format(c.total_clicks()) }}</span>
+                    <span><i class="bi bi-check2-circle"></i> {{ c.total_conversions() }}</span>
+                    <span>${{ "%.2f"|format(c.avg_cpc()) }} CPC</span>
+                </div>
+            </a>
+            {% if c.url and 'uncodemy' in c.url %}
+            <div class="mt-2">
+                <a href="{{ c.url }}" target="_blank" class="btn btn-sm btn-outline-primary w-100" onclick="event.stopPropagation();">
+                    <i class="bi bi-box-arrow-up-right"></i> View Course Page
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const labels = {{ chart_labels | tojson }};
+const clicksData = {{ chart_clicks | tojson }};
+const convData = {{ chart_conversions | tojson }};
+const costData = {{ chart_cost | tojson }};
+const roiData = {{ chart_roi | tojson }};
+const platformLabels = {{ platforms.keys() | list | tojson }};
+const platformValues = {{ platforms.values() | list | tojson }};
+
+// Trend Chart
+new Chart(document.getElementById('trendChart'), {
+    type: 'bar',
+    data: {
+        labels: labels,
+        datasets: [
+            {
+                type: 'line',
+                label: 'Conversions',
+                data: convData,
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16,185,129,0.1)',
+                tension: 0.3,
+                yAxisID: 'y1',
+                fill: true
+            },
+            {
+                type: 'bar',
+                label: 'Clicks',
+                data: clicksData,
+                backgroundColor: 'rgba(79,110,247,0.7)',
+                borderRadius: 4,
+                yAxisID: 'y'
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: 'top' } },
+        scales: {
+            y: { beginAtZero: true, position: 'left', title: { display: true, text: 'Clicks' } },
+            y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Conversions' } },
+            x: { ticks: { maxTicksLimit: 10, maxRotation: 0 } }
+        }
+    }
+});
+
+// Platform pie
+if (platformLabels.length) {
+    new Chart(document.getElementById('platformChart'), {
+        type: 'doughnut',
+        data: {
+            labels: platformLabels,
+            datasets: [{
+                data: platformValues,
+                backgroundColor: ['#4f6ef7', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12 } } }
+        }
+    });
+}
+
+// Simple donuts for share (using overall numbers)
+const totalConv = {{ total_conversions }};
+const totalClk = {{ total_clicks }};
+new Chart(document.getElementById('convDonut'), {
+    type: 'doughnut',
+    data: {
+        labels: ['Conversions', 'Non-converted'],
+        datasets: [{
+            data: [totalConv, Math.max(totalClk - totalConv, 1)],
+            backgroundColor: ['#10b981', '#e2e8f0'],
+            borderWidth: 0
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '70%',
+        plugins: { legend: { display: false } }
+    }
+});
+
+new Chart(document.getElementById('clicksDonut'), {
+    type: 'doughnut',
+    data: {
+        labels: ['Clicks', 'Other'],
+        datasets: [{
+            data: [totalClk, Math.round(totalClk * 0.15)],
+            backgroundColor: ['#4f6ef7', '#e2e8f0'],
+            borderWidth: 0
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '70%',
+        plugins: { legend: { display: false } }
+    }
+});
+
+// Cost + ROI
+new Chart(document.getElementById('costRoiChart'), {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [
+            {
+                label: 'Cost ($)',
+                data: costData,
+                borderColor: '#f59e0b',
+                backgroundColor: 'rgba(245,158,11,0.1)',
+                tension: 0.3,
+                yAxisID: 'y',
+                fill: true
+            },
+            {
+                label: 'ROI %',
+                data: roiData,
+                borderColor: '#8b5cf6',
+                tension: 0.3,
+                yAxisID: 'y1'
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'top', labels: { boxWidth: 12 } } },
+        scales: {
+            y: { beginAtZero: true, position: 'left' },
+            y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } },
+            x: { ticks: { maxTicksLimit: 6, maxRotation: 0 } }
+        }
+    }
+});
+</script>
+{% endblock %}
